@@ -80,7 +80,7 @@ def send_win(domain, mute_warnings: bool = False):
 
 def send_linux(domain, mute_warnings: bool = False):
     subprocess.run(["dig", domain],
-                   stdout=subprocess.PIPE, stderr=(subprocess.PIPE if mute_warnings else sys.stdout), shell=True)
+                   stdout=subprocess.PIPE, stderr=(subprocess.PIPE if mute_warnings else sys.stdout), shell=False)
 
 
 send_funcs = defaultdict(lambda _: send_linux)
