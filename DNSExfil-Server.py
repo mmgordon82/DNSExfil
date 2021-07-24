@@ -19,8 +19,9 @@
 import argparse
 import logging
 import sys
+import pathlib
+from datetime import datetime
 import string
-from collections import defaultdict
 
 from dnslib import DNSRecord, RCODE
 from DNSExfil import Alphabet, compression, DNSServer, ID
@@ -50,6 +51,7 @@ HANDLER = logging.StreamHandler(sys.stdout)
 HANDLER.setLevel(logging.DEBUG)
 HANDLER.setFormatter(FORMATTER)
 LOGGER.addHandler(HANDLER)
+FILE_FORMAT = "%Y-%m-%d-%H-%M-%S-ID{message_id}"
 
 CASE_SENSITIVE: Alphabet = Alphabet(b'abcdefghijklmnopqrstuvwxyz1234567890')
 CASE_INSENSITIVE: Alphabet = Alphabet(b'abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHJKLMNPQRSTUVWXYZ')
@@ -119,10 +121,15 @@ if __name__ == '__main__':
         help='IP address of the listening server')
 
     group_server.add_argument(
-        '--port', required=False,metavar="53", type=int, default=53, help='Port of the listening server')
+        '--port', required=False, metavar="53", type=int, default=53, help='Port of the listening server')
 
     group_server.add_argument(
-        '--max_connections', required=False,metavar="5", type=int, default=5, help='In TCP only: # of Maximum Connections allowed')
+        '--max_connections', required=False, metavar="5", type=int, default=5,
+        help='In TCP only: # of Maximum Connections allowed')
+
+    group_output = parser.add_argument_group('Output Settings')
+    group_output.add_argument(
+        '-o', '--output', required=False, metavar='FOLDER', type=str, help='Output to folder')
 
     args = parser.parse_args()
 
@@ -152,29 +159,40 @@ if __name__ == '__main__':
     compress_class = compressions.get(args.compress, compression.NoCompress)
     LOGGER.debug(f"Compression: {compress_class}")
 
+    output_path = None
+    if args.output:
+        output_path = pathlib.Path(args.output)
+        LOGGER.debug(f"Output: '{output_path}'")
+        if output_path.exists() and not output_path.is_dir():
+            raise FileExistsError(f"Output {output_path} is a file!")
+        else:
+            output_path.mkdir(parents=True, exist_ok=True)
+            LOGGER.debug(f"Created Folder '{output_path.resolve()}'")
+
     server = DNSServer(host=args.host, port=args.port, protocol=args.protocol, max_connections=args.max_connections)
     temp = dict()
     last = list()
 
+
     @server.on_incoming_data
     def new_data(data: bytes, addr):
         global temp, last
-        print(f'Incoming from {addr}: {data}')
+        LOGGER.info(f'Incoming from {addr}: {data}')
         request_dns = DNSRecord.parse(data)
         domain = str(request_dns.q.qname)
-        domain = domain.rstrip(".") # remove dot in the end
+        domain = domain.rstrip(".")  # remove dot in the end
         try:
             if subdomain.lower() in domain.lower():
                 split = domain.split(".")[:-(subdomain.count(".") + 1)]
                 message_id: ID = ID.from_hash(split[-1])
-                index = int(split[-2])-1 if split[-2].lower() != "t-1" else -1
+                index = int(split[-2]) - 1 if split[-2].lower() != "t-1" else -1
                 total_length = int(split[-3])
                 data = b"".join([alph.decode(i) for i in split[:-3]])
                 temp.setdefault(message_id, {index: data}).update({index: data})
                 LOGGER.debug(f"Temp: {temp}")
 
                 if -1 in temp[message_id]:
-                    #Message Reconstruction
+                    # Message Reconstruction
                     full_message = b""
                     for i in sorted(temp[message_id].keys())[1:]:
                         full_message += temp[message_id][i]
@@ -182,7 +200,14 @@ if __name__ == '__main__':
 
                     if len(full_message) == total_length and ID(full_message) == message_id:
                         if not full_message in last:
-                            print(f"FULL: {message_id} {total_length}: {compress_class.decompress(full_message)}")
+                            full_msg = compress_class.decompress(full_message)
+                            print(f"FULL: {message_id} {total_length}: {full_msg}")
+                            if args.output:
+                                output_file = output_path / datetime.now().strftime(FILE_FORMAT).format(
+                                    message_id=message_id)
+                                with output_file.open("wb") as f:
+                                    f.write(full_msg)
+
                             temp.pop(message_id)
                             last.append(full_message)
                             last = last[-4:]
