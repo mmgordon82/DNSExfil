@@ -80,7 +80,7 @@ def send_win(domain, mute_warnings: bool = False):
 
 def send_linux(domain, mute_warnings: bool = False):
     subprocess.run(["dig", domain],
-                   stdout=subprocess.PIPE, stderr=(subprocess.PIPE if mute_warnings else sys.stdout), shell=False)
+                   stdout=subprocess.PIPE, stderr=(subprocess.PIPE if mute_warnings else sys.stdout), shell=True)
 
 
 send_funcs = defaultdict(lambda _: send_linux)
@@ -100,8 +100,8 @@ if __name__ == '__main__':
         help="input filename or standard input")
 
     parser.add_argument(
-        '-s', '--send', required=False, action="store_true",
-        help='if set, sends the data using nslookup (Win) or dig (Linux)')
+        '--dry', required=False, default=False, action="store_true",
+        help='performs a dry run -  if set, DOES NOT send any data')
 
     parser.add_argument(
         'subdomain', metavar='SUBDOMAIN', type=str,
@@ -174,11 +174,11 @@ if __name__ == '__main__':
     builder.add(data)
     LOGGER.debug(f"Current Data Buffer: {builder.data}")
 
-    if args.send:
+    if not args.dry:
         LOGGER.debug(f"Send Function: {send} | Platform: {platform.system()}")
 
     for domain in builder.build_domains():
         print(domain)
-        if args.send:
+        if not args.dry:
             result = send(domain)
             LOGGER.debug(result)
