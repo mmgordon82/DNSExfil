@@ -1,7 +1,7 @@
 # __DNSExfil - DNS Tunneling Suite__
 ![Status](https://img.shields.io/badge/Status-Work%20In%20Progress%20--%20Available%20MVP-yellow)
 
-__This code is a minimum viable product (MVP) for an article in digitalwhisper.co.il.__
+__This code is a minimum viable product (MVP) for an [article in digitalwhisper.co.il](https://www.digitalwhisper.co.il/files/Zines/0x84/DW132-3-DNSExfil101.pdf).__
 
 DNSExfil is a framework/cli-tool written in Python 3 (>3.8) aimed to exfiltrate data to a remote computer by encoding it to one (or more) DNS queries. Most DNS Tunneling solutions today don't give users the ability to get down to the nitty-gritty of the queries and change domain-building workflow (compression, encryption and encoding used to create the domains for the queries). The main purpose of DNSExfil is to be a solid baseline for pentesters who are looking for the ultimate control over every aspect of building and sending the DNS queries.
 
